@@ -553,6 +553,58 @@ function ScenarioPanel({ def, items, sizeTable, budget, onUpdate }) {
   );
 }
 
+// ─── Full backlog ─────────────────────────────────────────────────────────────
+function FullBacklog({ items, sizeTable, onUpdate, discretionary }) {
+  const [open, setOpen] = useState(false);
+  const backlog = items.filter(i => !isCommitted(i));
+  const totalEW = backlog.reduce((s, i) => s + getEW(i, sizeTable), 0);
+
+  const FILTER_SEGMENTS = ["All segments", ...SEGMENT_OPTIONS.filter(s => s !== "All")];
+  const FILTER_IMPACTS  = ["All impacts", ...IMPACT_OPTIONS];
+  const [filterSeg, setFilterSeg] = useState("All segments");
+  const [filterImp, setFilterImp] = useState("All impacts");
+
+  const filtered = backlog.filter(item => {
+    const segMatch = filterSeg === "All segments" || (item.segments || []).some(s => s === filterSeg || s === "All");
+    const impMatch = filterImp === "All impacts" || (item.impacts || []).includes(filterImp);
+    return segMatch && impMatch;
+  });
+
+  return (
+    <div style={{ marginTop: 24, marginBottom: 8 }}>
+      <button onClick={() => setOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: open ? 12 : 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+          {open ? "▼" : "▶"} Full discretionary backlog — {backlog.length} items · {totalEW} ew total
+        </span>
+        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "#FEF0F0", color: C.red, fontWeight: 600 }}>
+          {Math.round(totalEW / Math.max(1, discretionary))}× over budget
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ background: C.white, border: "0.5px solid #E8ECF2", borderRadius: 10, padding: "14px 16px" }}>
+          {/* filters */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "#888" }}>Filter:</span>
+            <select value={filterSeg} onChange={e => setFilterSeg(e.target.value)} style={{ fontSize: 11, padding: "4px 8px", border: "1px solid #D0D5DD", borderRadius: 5, background: C.white }}>
+              {FILTER_SEGMENTS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={filterImp} onChange={e => setFilterImp(e.target.value)} style={{ fontSize: 11, padding: "4px 8px", border: "1px solid #D0D5DD", borderRadius: 5, background: C.white, maxWidth: 260 }}>
+              {FILTER_IMPACTS.map(i => <option key={i} value={i}>{IMPACT_SHORT[i] || i}</option>)}
+            </select>
+            <span style={{ fontSize: 11, color: "#AAA" }}>{filtered.length} items shown</span>
+          </div>
+
+          {filtered.length === 0 && <div style={{ fontSize: 12, color: "#AAA" }}>No items match the selected filters.</div>}
+          {filtered.map(item => (
+            <ItemCard key={item.id} item={item} sizeTable={sizeTable} onUpdate={onUpdate} accentColor={C.blueViolet} overBudget={false} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main dashboard ───────────────────────────────────────────────────────────
 export default function TritonDashboard() {
   const [items,      setItems]      = useState(INITIAL_ITEMS);
@@ -689,6 +741,9 @@ export default function TritonDashboard() {
             />
           )}
         </div>
+
+        {/* ── Full discretionary backlog ── */}
+        <FullBacklog items={items} sizeTable={sizeTable} onUpdate={updateItem} discretionary={discretionary} />
 
         <div style={{ marginTop: 20, fontSize: 11, color: "#AAA", lineHeight: 1.6, paddingBottom: "1rem" }}>
           Estimates use eng-week midpoints from the size table above — edit them to recalculate. Committed items are deducted before discretionary budget is computed. Scenario item selection follows file order (priority order); items are included greedily until budget is exhausted. Buffer is intentional risk absorption, not slack.
